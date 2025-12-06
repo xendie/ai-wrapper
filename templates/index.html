@@ -7,30 +7,64 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <h1>AI Assistant</h1>
-        </div>
-        <div class="chat-messages" id="chatMessages">
-            <div class="message ai-message">
-                <div class="message-content">
-                    Hello! How can I help you today?
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-button" id="newChatButton">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    New Chat
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <div class="conversations-list" id="conversationsList">
+                    <!-- Conversations will be loaded here -->
                 </div>
             </div>
-        </div>
-        <div class="chat-input-container">
-            <div class="input-wrapper">
-                <textarea 
-                    id="messageInput" 
-                    placeholder="Type your message here..." 
-                    rows="1"
-                ></textarea>
-                <button id="sendButton" class="send-button">
+            <div class="sidebar-footer">
+                <div class="user-menu">
+                    <span class="username" id="usernameDisplay">User</span>
+                    <button class="logout-button" id="logoutButton">Logout</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <button class="sidebar-toggle" id="sidebarToggle">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
                     </svg>
                 </button>
+                <h1 id="conversationTitle">AI Assistant</h1>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai-message">
+                    <div class="message-content">
+                        Hello! How can I help you today?
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="Type your message here..." 
+                        rows="1"
+                    ></textarea>
+                    <button id="sendButton" class="send-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
