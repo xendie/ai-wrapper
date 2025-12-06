@@ -193,9 +193,7 @@ function startNewConversation() {
     conversationTitle.textContent = 'New Chat';
     chatMessages.innerHTML = `
         <div class="message ai-message">
-            <div class="message-content">
-                Hello! How can I help you today?
-            </div>
+            <div class="message-content">Hello! How can I help you today?</div>
         </div>
     `;
     renderConversations();
@@ -275,11 +273,18 @@ function sendMessage() {
 
 function addMessage(role, content, scroll = true) {
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role}-message`;
+    // Normalize 'assistant' role to 'ai' for CSS class consistency
+    const normalizedRole = role === 'assistant' ? 'ai' : role;
+    messageDiv.className = `message ${normalizedRole}-message`;
     
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
-    contentDiv.textContent = content;
+    
+    // Parse markdown code blocks and render as HTML
+    contentDiv.innerHTML = parseMarkdownCodeBlocks(content);
+    
+    // Highlight code blocks
+    highlightCode(contentDiv);
     
     messageDiv.appendChild(contentDiv);
     chatMessages.appendChild(messageDiv);
@@ -326,8 +331,9 @@ function streamResponse(userMessage, contentElement) {
         function readStream() {
             return reader.read().then(({ done, value }) => {
                 if (done) {
-                    // Remove streaming cursor
-                    contentElement.innerHTML = escapeHtml(aiResponse);
+                    // Remove streaming cursor and parse markdown
+                    contentElement.innerHTML = parseMarkdownCodeBlocks(aiResponse);
+                    highlightCode(contentElement);
                     
                     // Add AI response to conversation history
                     conversationHistory.push({ role: 'assistant', content: aiResponse });
@@ -369,14 +375,16 @@ function streamResponse(userMessage, contentElement) {
                             
                             if (data.content) {
                                 aiResponse += data.content;
-                                // Update content with streaming cursor
-                                contentElement.innerHTML = escapeHtml(aiResponse) + '<span class="streaming-cursor"></span>';
+                                // Update content with streaming cursor (parse markdown for code blocks)
+                                contentElement.innerHTML = parseMarkdownCodeBlocks(aiResponse) + '<span class="streaming-cursor"></span>';
+                                highlightCode(contentElement);
                                 scrollToBottom();
                             }
                             
                             if (data.done) {
-                                // Remove streaming cursor
-                                contentElement.innerHTML = escapeHtml(aiResponse);
+                                // Remove streaming cursor and parse markdown
+                                contentElement.innerHTML = parseMarkdownCodeBlocks(aiResponse);
+                                highlightCode(contentElement);
                                 conversationHistory.push({ role: 'assistant', content: aiResponse });
                                 
                                 // Update conversation ID if this was a new conversation (only if authenticated)
@@ -415,4 +423,156 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function parseMarkdownCodeBlocks(text) {
+    // First, handle inline code (single backticks) - but not inside code blocks
+    // We'll do this in a second pass after handling code blocks
+    
+    // Split text by code blocks (```language\ncode\n``` or ```\ncode\n```)
+    // This regex handles both cases: with or without language, and with optional newline after ```
+    const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = codeBlockRegex.exec(text)) !== null) {
+        // Add text before code block (escaped and with inline code handling)
+        if (match.index > lastIndex) {
+            const textBefore = text.substring(lastIndex, match.index);
+            if (textBefore.trim()) {
+                parts.push({ type: 'text', content: textBefore });
+            }
+        }
+        
+        // Add code block
+        const language = match[1] || 'text';
+        const code = match[2].trim(); // Remove leading/trailing whitespace
+        parts.push({ type: 'code', language: language, content: code });
+        
+        lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text after last code block
+    if (lastIndex < text.length) {
+        const textAfter = text.substring(lastIndex);
+        if (textAfter.trim()) {
+            parts.push({ type: 'text', content: textAfter });
+        }
+    }
+    
+    // If no code blocks found, process as text only
+    if (parts.length === 0) {
+        return processInlineCode(escapeHtml(text));
+    }
+    
+    // Build HTML from parts
+    let html = '';
+    parts.forEach(part => {
+        if (part.type === 'text') {
+            // Process inline code and escape HTML, then convert newlines to <br>
+            const processed = processInlineCode(escapeHtml(part.content));
+            html += processed.replace(/\n/g, '<br>');
+        } else if (part.type === 'code') {
+            // Create code block with language class and copy button
+            const escapedCode = escapeHtml(part.content);
+            html += `<div class="code-block-wrapper">
+                <pre class="code-block"><code class="language-${part.language}">${escapedCode}</code>
+                    <button class="copy-code-button" title="Copy code" aria-label="Copy code">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                </pre>
+            </div>`;
+        }
+    });
+    
+    return html;
+}
+
+function processInlineCode(text) {
+    // Handle inline code (single backticks)
+    // Simple regex that matches `code` - works for most cases
+    // Note: This won't perfectly handle edge cases with triple backticks in text,
+    // but code blocks are handled separately so this should work fine
+    // The text is already escaped, so we just need to wrap matches in code tags
+    return text.replace(/`([^`\n]+)`/g, (match, codeContent) => {
+        // Code content is already escaped from escapeHtml, so we can use it directly
+        return `<code class="inline-code">${codeContent}</code>`;
+    });
+}
+
+function highlightCode(element) {
+    // Use Prism to highlight code blocks
+    if (typeof Prism !== 'undefined') {
+        const codeBlocks = element.querySelectorAll('pre code');
+        codeBlocks.forEach(block => {
+            Prism.highlightElement(block);
+        });
+    }
+    
+    // Setup copy buttons for code blocks
+    setupCopyButtons(element);
+}
+
+function setupCopyButtons(container) {
+    const copyButtons = container.querySelectorAll('.copy-code-button');
+    copyButtons.forEach(button => {
+        // Remove existing event listeners by cloning
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        
+        newButton.addEventListener('click', async () => {
+            const codeBlock = newButton.closest('.code-block');
+            const code = codeBlock.querySelector('code');
+            const codeText = code.textContent || code.innerText;
+            
+            try {
+                await navigator.clipboard.writeText(codeText);
+                
+                // Visual feedback
+                const originalHTML = newButton.innerHTML;
+                newButton.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                `;
+                newButton.classList.add('copied');
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    newButton.innerHTML = originalHTML;
+                    newButton.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy code:', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = codeText;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const originalHTML = newButton.innerHTML;
+                    newButton.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    `;
+                    newButton.classList.add('copied');
+                    setTimeout(() => {
+                        newButton.innerHTML = originalHTML;
+                        newButton.classList.remove('copied');
+                    }, 2000);
+                } catch (fallbackErr) {
+                    console.error('Fallback copy failed:', fallbackErr);
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+    });
 }
